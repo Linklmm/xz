@@ -138,14 +138,14 @@ xz/
 #### 用户输入
 
 ```
-/xz 生产环境订单支付接口超时，traceId: abc123def456，时间：2024-01-01 14:23:00，用户反馈支付失败但扣款成功
+/xz 生产环境订单支付接口超时，traceId: abc123def456，时间：2026-01-01 14:23:00，用户反馈支付失败但扣款成功
 ```
 
 #### xz 诊断流程
 
 **Phase 0: 信息补全**
 - 识别 traceId: `abc123def456`
-- 识别时间: `2024-01-01 14:23:00`
+- 识别时间: `2026-01-01 14:23:00`
 - 识别问题类型: 支付超时 + 数据不一致
 - 识别环境: 生产环境
 - 识别应用: order-service, payment-service, bank-gateway
@@ -155,8 +155,8 @@ xz/
 调用 sk.queryTrace(
   traceId="abc123def456",
   env="生产环境",
-  startTime="2024-01-01 14:20:00",
-  endTime="2024-01-01 14:25:00"
+  startTime="2026-01-01 14:20:00",
+  endTime="2026-01-01 14:25:00"
 )
 
 返回结果:
@@ -170,8 +170,8 @@ xz/
 调用 elk.searchLogs(
   traceId="abc123def456",
   env="生产环境",
-  startTime="2024-01-01 14:20:00",
-  endTime="2024-01-01 14:25:00"
+  startTime="2026-01-01 14:20:00",
+  endTime="2026-01-01 14:25:00"
 )
 
 关键日志:
@@ -190,7 +190,7 @@ xz/
 
 结果:
 order_id          | status | amount | updated_at
-ORD20240101001    | PAID   | 100.00 | 2024-01-01 14:23:16
+ORD20240101001    | PAID   | 100.00 | 2026-01-01 14:23:16
 
 结论: 订单状态已更新为 PAID，但用户侧显示未支付
 ```
@@ -232,7 +232,7 @@ public BankResponse call(BankRequest req) {
 
 ## 问题概述
 - **环境**: 生产环境
-- **时间**: 2024-01-01 14:23:00
+- **时间**: 2026-01-01 14:23:00
 - **问题**: 订单支付接口超时，用户支付失败但扣款成功，属于数据不一致问题
 
 ## 根因分析
@@ -289,7 +289,7 @@ public BankResponse call(BankRequest req) {
 #### 用户输入
 
 ```
-/xz 测试环境 order-service 的 CPU 使用率持续 90% 以上，机器 IP: 192.168.1.100，时间：2024-01-01 15:00:00
+/xz 测试环境 order-service 的 CPU 使用率持续 90% 以上，机器 IP: 192.168.1.100，时间：2026-01-01 15:00:00
 ```
 
 #### xz 诊断流程
@@ -298,7 +298,7 @@ public BankResponse call(BankRequest req) {
 - 识别环境: 测试环境
 - 识别应用: order-service
 - 识别机器: 192.168.1.100
-- 识别时间: 2024-01-01 15:00:00
+- 识别时间: 2026-01-01 15:00:00
 - 识别问题类型: JVM CPU 飙高
 
 **Phase 1: JVM 诊断（arthas MCP）**
@@ -308,7 +308,7 @@ public BankResponse call(BankRequest req) {
   env="测试环境",
   host="192.168.1.100",
   app="order-service",
-  time="2024-01-01 15:00:00"
+  time="2026-01-01 15:00:00"
 )
 
 发现:
@@ -323,7 +323,7 @@ public BankResponse call(BankRequest req) {
 调用 arthas.heapDump(
   env="测试环境",
   host="192.168.1.100",
-  time="2024-01-01 15:00:00"
+  time="2026-01-01 15:00:00"
 )
 
 发现:
@@ -355,7 +355,7 @@ public void calculateDiscount() {
 - **环境**: 测试环境
 - **机器**: 192.168.1.100
 - **应用**: order-service
-- **时间**: 2024-01-01 15:00:00
+- **时间**: 2026-01-01 15:00:00
 - **问题**: CPU 使用率持续 90% 以上
 
 ## 根因
