@@ -138,7 +138,7 @@ xz/
 #### 用户输入
 
 ```
-/xz 订单支付接口超时，traceId: abc123def456，用户反馈支付失败但扣款成功
+/xz 长乐生产环境订单支付接口超时，traceId: abc123def456，用户反馈支付失败但扣款成功
 ```
 
 #### xz 诊断流程
@@ -146,11 +146,15 @@ xz/
 **Phase 0: 信息补全**
 - 识别 traceId: `abc123def456`
 - 识别问题类型: 支付超时 + 数据不一致
-- 识别环境: 未指定（标记为"未指定环境"）
+- 识别环境: 长乐生产
+- 识别应用: order-service, payment-service, bank-gateway
 
 **Phase 1: 链路分析（sk MCP）**
 ```
-调用 sk.queryTrace(traceId="abc123def456")
+调用 sk.queryTrace(
+  traceId="abc123def456",
+  env="长乐生产"
+)
 
 返回结果:
 - 服务 A (order-service): 1200ms ✅
@@ -162,13 +166,14 @@ xz/
 ```
 调用 elk.searchLogs(
   traceId="abc123def456",
+  env="长乐生产",
   timeRange="last 1h"
 )
 
 关键日志:
-[14:23:15] payment-service - 调用 bank-gateway 超时
-[14:23:15] payment-service - 重试次数: 0
-[14:23:16] payment-service - 抛出 TimeoutException
+[14:23:15] [长乐生产] payment-service - 调用 bank-gateway 超时
+[14:23:15] [长乐生产] payment-service - 重试次数: 0
+[14:23:16] [长乐生产] payment-service - 抛出 TimeoutException
 ```
 
 **Phase 3: 数据验证（sql MCP）**
@@ -222,7 +227,9 @@ public BankResponse call(BankRequest req) {
 # 诊断报告
 
 ## 问题概述
-订单支付接口超时，用户支付失败但扣款成功，属于数据不一致问题。
+- **环境**: 长乐生产
+- **时间**: 2024-01-01 14:23:15
+- **问题**: 订单支付接口超时，用户支付失败但扣款成功，属于数据不一致问题
 
 ## 根因分析
 **直接原因**: bank-gateway 服务响应超时（5.2s），payment-service 未实现重试机制
@@ -278,17 +285,28 @@ public BankResponse call(BankRequest req) {
 #### 用户输入
 
 ```
-/xz order-service 的 CPU 使用率持续 90% 以上，机器 IP: 192.168.1.100
+/xz 马尾测试环境 order-service 的 CPU 使用率持续 90% 以上，机器 IP: 192.168.1.100
 ```
 
 #### xz 诊断流程
 
+**Phase 0: 信息补全**
+- 识别环境: 马尾测试
+- 识别应用: order-service
+- 识别机器: 192.168.1.100
+- 识别问题类型: JVM CPU 飙高
+
 **Phase 1: JVM 诊断（arthas MCP）**
 ```
-调用 arthas.threadAnalysis()
+# 根据环境"马尾测试"和机器 IP 定位 arthas 实例
+调用 arthas.threadAnalysis(
+  env="马尾测试",
+  host="192.168.1.100",
+  app="order-service"
+)
 
 发现:
-- " DubboServerHandler-thread-23" CPU: 45%
+- "DubboServerHandler-thread-23" CPU: 45%
   调用栈: OrderService.calculateDiscount() -> DiscountRule.apply()
 - "GC task thread" CPU: 35%
   频繁 Full GC，每 30s 一次
@@ -296,10 +314,13 @@ public BankResponse call(BankRequest req) {
 
 **Phase 2: 内存分析**
 ```
-调用 arthas.heapDump()
+调用 arthas.heapDump(
+  env="马尾测试",
+  host="192.168.1.100"
+)
 
 发现:
--老年代使用率: 92%
+- 老年代使用率: 92%
 - 大对象: List<Order> (100,000 条记录，占用 500MB)
 ```
 
@@ -322,6 +343,12 @@ public void calculateDiscount() {
 **Phase 4: 生成报告**
 ```markdown
 # CPU 飙高诊断报告
+
+## 问题概述
+- **环境**: 马尾测试
+- **机器**: 192.168.1.100
+- **应用**: order-service
+- **问题**: CPU 使用率持续 90% 以上
 
 ## 根因
 1. **内存泄漏**: OrderService 一次性加载 10 万条订单到内存
