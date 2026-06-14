@@ -1,0 +1,28 @@
+{
+  "name": "xz",
+  "displayName": "獬豸(xz) 问题排查技能",
+  "shortDescription": "Java/JVM 应用全栈问题排查技能，集成 ELK、SkyWalking、SQL、Arthas 等诊断工具",
+  "version": "1.0.0",
+  "brandColor": "#8B5CF6",
+  "author": {
+    "name": "xz team"
+  },
+  "license": "MIT",
+  "keywords": [
+    "troubleshooting",
+    "diagnostics",
+    "java",
+    "jvm",
+    "arthas",
+    "elk",
+    "skywalking",
+    "mcp"
+  ],
+  "skills": [
+    {
+      "name": "xz",
+      "path": "./skills/xz/SKILL.md",
+      "description": "基于 MCP 编排的生产/测试环境问题诊断技能"
+    }
+  ]
+}
