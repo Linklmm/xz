@@ -138,22 +138,25 @@ xz/
 #### 用户输入
 
 ```
-/xz 长乐生产环境订单支付接口超时，traceId: abc123def456，用户反馈支付失败但扣款成功
+/xz 生产环境订单支付接口超时，traceId: abc123def456，时间：2024-01-01 14:23:00，用户反馈支付失败但扣款成功
 ```
 
 #### xz 诊断流程
 
 **Phase 0: 信息补全**
 - 识别 traceId: `abc123def456`
+- 识别时间: `2024-01-01 14:23:00`
 - 识别问题类型: 支付超时 + 数据不一致
-- 识别环境: 长乐生产
+- 识别环境: 生产环境
 - 识别应用: order-service, payment-service, bank-gateway
 
 **Phase 1: 链路分析（sk MCP）**
 ```
 调用 sk.queryTrace(
   traceId="abc123def456",
-  env="长乐生产"
+  env="生产环境",
+  startTime="2024-01-01 14:20:00",
+  endTime="2024-01-01 14:25:00"
 )
 
 返回结果:
@@ -166,14 +169,15 @@ xz/
 ```
 调用 elk.searchLogs(
   traceId="abc123def456",
-  env="长乐生产",
-  timeRange="last 1h"
+  env="生产环境",
+  startTime="2024-01-01 14:20:00",
+  endTime="2024-01-01 14:25:00"
 )
 
 关键日志:
-[14:23:15] [长乐生产] payment-service - 调用 bank-gateway 超时
-[14:23:15] [长乐生产] payment-service - 重试次数: 0
-[14:23:16] [长乐生产] payment-service - 抛出 TimeoutException
+[14:23:15] [生产环境] payment-service - 调用 bank-gateway 超时
+[14:23:15] [生产环境] payment-service - 重试次数: 0
+[14:23:16] [生产环境] payment-service - 抛出 TimeoutException
 ```
 
 **Phase 3: 数据验证（sql MCP）**
@@ -227,8 +231,8 @@ public BankResponse call(BankRequest req) {
 # 诊断报告
 
 ## 问题概述
-- **环境**: 长乐生产
-- **时间**: 2024-01-01 14:23:15
+- **环境**: 生产环境
+- **时间**: 2024-01-01 14:23:00
 - **问题**: 订单支付接口超时，用户支付失败但扣款成功，属于数据不一致问题
 
 ## 根因分析
@@ -285,24 +289,26 @@ public BankResponse call(BankRequest req) {
 #### 用户输入
 
 ```
-/xz 马尾测试环境 order-service 的 CPU 使用率持续 90% 以上，机器 IP: 192.168.1.100
+/xz 测试环境 order-service 的 CPU 使用率持续 90% 以上，机器 IP: 192.168.1.100，时间：2024-01-01 15:00:00
 ```
 
 #### xz 诊断流程
 
 **Phase 0: 信息补全**
-- 识别环境: 马尾测试
+- 识别环境: 测试环境
 - 识别应用: order-service
 - 识别机器: 192.168.1.100
+- 识别时间: 2024-01-01 15:00:00
 - 识别问题类型: JVM CPU 飙高
 
 **Phase 1: JVM 诊断（arthas MCP）**
 ```
-# 根据环境"马尾测试"和机器 IP 定位 arthas 实例
+# 根据环境"测试环境"和机器 IP 定位 arthas 实例
 调用 arthas.threadAnalysis(
-  env="马尾测试",
+  env="测试环境",
   host="192.168.1.100",
-  app="order-service"
+  app="order-service",
+  time="2024-01-01 15:00:00"
 )
 
 发现:
@@ -315,8 +321,9 @@ public BankResponse call(BankRequest req) {
 **Phase 2: 内存分析**
 ```
 调用 arthas.heapDump(
-  env="马尾测试",
-  host="192.168.1.100"
+  env="测试环境",
+  host="192.168.1.100",
+  time="2024-01-01 15:00:00"
 )
 
 发现:
@@ -345,9 +352,10 @@ public void calculateDiscount() {
 # CPU 飙高诊断报告
 
 ## 问题概述
-- **环境**: 马尾测试
+- **环境**: 测试环境
 - **机器**: 192.168.1.100
 - **应用**: order-service
+- **时间**: 2024-01-01 15:00:00
 - **问题**: CPU 使用率持续 90% 以上
 
 ## 根因
