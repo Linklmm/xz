@@ -1,0 +1,246 @@
+name: Release and Publish Plugin
+
+on:
+  push:
+    tags:
+      - 'v*'  # 触发条件：推送 v 开头的 tag，如 v1.0.0
+
+jobs:
+  validate:
+    name: Validate Plugin Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate Claude Code plugin.json
+        run: |
+          echo "🔍 Validating Claude Code plugin format..."
+          if [ ! -f ".claude-plugin/plugin.json" ]; then
+            echo "❌ Error: .claude-plugin/plugin.json not found"
+            exit 1
+          fi
+
+          # 验证 JSON 格式
+          if ! jq empty .claude-plugin/plugin.json 2>/dev/null; then
+            echo "❌ Error: Invalid JSON in .claude-plugin/plugin.json"
+            exit 1
+          fi
+
+          # 验证必需字段
+          REQUIRED_FIELDS=("name" "description" "version")
+          for field in "${REQUIRED_FIELDS[@]}"; do
+            if ! jq -e ".$field" .claude-plugin/plugin.json > /dev/null 2>&1; then
+              echo "❌ Error: Missing required field '$field' in .claude-plugin/plugin.json"
+              exit 1
+            fi
+          done
+
+          echo "✅ Claude Code plugin.json is valid"
+          cat .claude-plugin/plugin.json
+
+      - name: Validate Codex plugin.json
+        run: |
+          echo "🔍 Validating Codex plugin format..."
+          if [ ! -f ".codex-plugin/plugin.json" ]; then
+            echo "❌ Error: .codex-plugin/plugin.json not found"
+            exit 1
+          fi
+
+          # 验证 JSON 格式
+          if ! jq empty .codex-plugin/plugin.json 2>/dev/null; then
+            echo "❌ Error: Invalid JSON in .codex-plugin/plugin.json"
+            exit 1
+          fi
+
+          # 验证必需字段
+          REQUIRED_FIELDS=("name" "displayName" "shortDescription" "version")
+          for field in "${REQUIRED_FIELDS[@]}"; do
+            if ! jq -e ".$field" .codex-plugin/plugin.json > /dev/null 2>&1; then
+              echo "❌ Error: Missing required field '$field' in .codex-plugin/plugin.json"
+              exit 1
+            fi
+          done
+
+          echo "✅ Codex plugin.json is valid"
+          cat .codex-plugin/plugin.json
+
+  release:
+    name: Create GitHub Release
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整历史用于生成 changelog
+
+      - name: Get tag and version
+        id: get_tag
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG#v}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Tag: $TAG"
+          echo "📦 Version: $VERSION"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          echo "📝 Generating changelog..."
+
+          # 获取上一个 tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -n "$PREV_TAG" ]; then
+            echo "Comparing $PREV_TAG to ${{ steps.get_tag.outputs.tag }}"
+            CHANGES=$(git log --pretty=format:"- %s (%h)" $PREV_TAG..HEAD)
+          else
+            echo "First release, showing all commits"
+            CHANGES=$(git log --pretty=format:"- %s (%h)")
+          fi
+
+          # 保存到文件
+          cat > CHANGELOG.md << EOF
+          ## What's Changed
+
+          $CHANGES
+
+          ## Installation
+
+          ### Claude Code
+          \`\`\`bash
+          /plugin install xz@github:${{ github.repository }}
+          \`\`\`
+
+          ### Codex CLI
+          \`\`\`bash
+          /plugins install xz@github:${{ github.repository }}
+          \`\`\`
+
+          ## Download
+
+          Download the source code below or clone the repository:
+          \`\`\`bash
+          git clone --branch ${{ steps.get_tag.outputs.tag }} https://github.com/${{ github.repository }}.git
+          \`\`\`
+          EOF
+
+          cat CHANGELOG.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_tag.outputs.tag }}
+          name: Release ${{ steps.get_tag.outputs.tag }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-to-community:
+    name: Publish to Community Registries
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get plugin info
+        id: plugin_info
+        run: |
+          PLUGIN_NAME=$(jq -r '.name' .claude-plugin/plugin.json)
+          PLUGIN_VERSION=$(jq -r '.version' .claude-plugin/plugin.json)
+          PLUGIN_DESC=$(jq -r '.description' .claude-plugin/plugin.json)
+
+          echo "name=$PLUGIN_NAME" >> $GITHUB_OUTPUT
+          echo "version=$PLUGIN_VERSION" >> $GITHUB_OUTPUT
+          echo "description=$PLUGIN_DESC" >> $GITHUB_OUTPUT
+
+          echo "📦 Plugin: $PLUGIN_NAME v$PLUGIN_VERSION"
+
+      - name: Prepare submission data
+        id: prepare
+        run: |
+          REPO_URL="https://github.com/${{ github.repository }}"
+          TAG=${GITHUB_REF#refs/tags/}
+
+          # 创建提交数据
+          cat > submission.json << EOF
+          {
+            "plugin_name": "${{ steps.plugin_info.outputs.name }}",
+            "version": "${{ steps.plugin_info.outputs.version }}",
+            "description": "${{ steps.plugin_info.outputs.description }}",
+            "repository": "$REPO_URL",
+            "tag": "$TAG",
+            "author": "${{ github.actor }}",
+            "submitted_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+          cat submission.json
+
+          # 保存为 artifact
+          mkdir -p submission
+          cp submission.json submission/
+          cp .claude-plugin/plugin.json submission/claude-plugin.json
+          cp .codex-plugin/plugin.json submission/codex-plugin.json
+
+      - name: Upload submission artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-submission-${{ steps.plugin_info.outputs.name }}-${{ steps.plugin_info.outputs.version }}
+          path: submission/
+          retention-days: 30
+
+  notify:
+    name: Notify Manual Submission
+    needs: [release, publish-to-community]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Output submission guide
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          REPO_URL="https://github.com/${{ github.repository }}"
+
+          cat << EOF
+
+          ╔════════════════════════════════════════════════════════════════╗
+          ║                    🎉 Release Complete!                        ║
+          ╚════════════════════════════════════════════════════════════════╝
+
+          📦 Release $TAG created successfully!
+
+          🔗 Repository: $REPO_URL
+          🏷️  Tag: $TAG
+
+          ╔════════════════════════════════════════════════════════════════╗
+          ║              📋 Manual Submission Required                     ║
+          ╚════════════════════════════════════════════════════════════════╝
+
+          The following steps require manual submission:
+
+          1️⃣  Claude Code Official Marketplace
+             🔗 https://claude.ai/admin-settings/directory/submissions/plugins/new
+             📝 Submit your plugin for review
+
+          2️⃣  Codex Official Marketplace
+             🔗 https://www.codex-marketplace.com/submit
+             📝 Submit your plugin for review
+
+          3️⃣  Community Registries (Optional)
+             - claude-plugins.dev: Submit PR to their registry
+             - awesome-codex-plugins: Submit PR following CONTRIBUTING.md
+
+          ✅ Automated tasks completed:
+             - Plugin format validation
+             - GitHub Release created with changelog
+             - Submission data prepared (download from Actions artifacts)
+
+          EOF
