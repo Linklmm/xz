@@ -221,7 +221,6 @@ public BankResponse call(BankRequest req) {
     return httpClient.post(url, req);
 }
 ```
-```
 
 **Phase 6: 生成诊断报告**
 
