@@ -1,0 +1,19 @@
+{
+  "name": "xz",
+  "description": "獬豸问题排查技能：基于 MCP 编排的生产/测试环境问题诊断，集成 elk、sk、sql、demo-mcp、arthas(JVM) 五类证据源",
+  "version": "1.0.0",
+  "author": {
+    "name": "xz team"
+  },
+  "keywords": [
+    "skills",
+    "troubleshooting",
+    "diagnostics",
+    "mcp",
+    "jvm",
+    "arthas",
+    "elk",
+    "skywalking"
+  ],
+  "license": "MIT"
+}
